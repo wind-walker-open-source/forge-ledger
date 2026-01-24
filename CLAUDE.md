@@ -36,6 +36,7 @@ ForgeLedger is a deterministic job and workflow ledger for queue-driven distribu
 |------|---------|
 | `ForgeLedger/src/ForgeLedger/Program.cs` | DI setup, middleware, Lambda hosting |
 | `ForgeLedger/src/ForgeLedger/Api/Endpoints.cs` | REST endpoint definitions |
+| `ForgeLedger/src/ForgeLedger/Auth/` | API key middleware and provider |
 | `ForgeLedger/src/ForgeLedger/Core/IForgeLedgerStore.cs` | Store interface (6 methods) |
 | `ForgeLedger/src/ForgeLedger/Stores/DynamoDbForgeLedgerStore.cs` | DynamoDB implementation with state machine |
 | `ForgeLedger/src/ForgeLedger/serverless.template` | CloudFormation/SAM deployment template |
@@ -53,6 +54,14 @@ State transitions are enforced atomically via DynamoDB condition expressions.
 - Partition key: `PK` = `JOB#{jobId}`
 - Sort key: `SK` = `META` (job metadata) or `ITEM#{itemId}` (item records)
 - Table name configurable via `FORGELEDGER_TABLE` or `JOBS_TABLE` env vars, defaults to `ForgeLedger`
+
+### Authentication
+
+API key authentication via `X-API-KEY` header. Key is loaded from (in order):
+1. appsettings: `ForgeLedger:ApiKey` (if set, used immediately)
+2. AWS Parameter Store: `/ForgeLedger/API/Key` (fallback if appsettings is empty)
+
+Excluded paths (no auth required): `/`, `/health`, `/swagger/*`
 
 ### API Endpoints
 

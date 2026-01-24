@@ -224,6 +224,11 @@
             "DynamoDBCrudPolicy": {
               "TableName": { "Ref": "ForgeLedgerTable" }
             }
+          },
+          {
+            "SSMParameterReadPolicy": {
+              "ParameterName": "ForgeLedger/API/Key"
+            }
           }
         ],
         "Events": {

@@ -1,8 +1,10 @@
 using Amazon.DynamoDBv2;
+using Amazon.SimpleSystemsManagement;
 using ForgeLedger.Api;
+using ForgeLedger.Auth;
 using ForgeLedger.Core;
 using ForgeLedger.Stores;
-using Microsoft.OpenApi;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,10 +25,38 @@ builder.Services.AddSwaggerGen(c =>
             Url = new Uri("https://windwalkeropensource.com")
         }
     });
+
+    // API Key authentication
+    c.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.ApiKey,
+        In = ParameterLocation.Header,
+        Name = "X-API-KEY",
+        Description = "API key required for authentication"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "ApiKey"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
 });
 
 // AWS services
 builder.Services.AddAWSService<IAmazonDynamoDB>();
+builder.Services.AddAWSService<IAmazonSimpleSystemsManagement>();
+
+// API key provider (reads from Parameter Store, falls back to appsettings)
+builder.Services.AddSingleton<ApiKeyProvider>();
 
 // ForgeLedger core
 builder.Services.AddSingleton<IForgeLedgerStore>(sp =>
@@ -71,6 +101,9 @@ app.Use(async (context, next) =>
 });
 
 app.UseHttpsRedirection();
+
+// API key authentication (skips /health, /swagger, /)
+app.UseApiKeyAuthentication();
 
 Endpoints.Map(app);
 
