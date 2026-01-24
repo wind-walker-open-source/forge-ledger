@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using ForgeLedger.Contracts.Request;
 using ForgeLedger.Contracts.Response;
+using Microsoft.Extensions.Options;
 
 namespace ForgeLedger.Client
 {
@@ -21,10 +22,10 @@ namespace ForgeLedger.Client
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
 
-        public ForgeLedgerClient(HttpClient http, ForgeLedgerClientOptions options)
+        public ForgeLedgerClient(HttpClient http, IOptions<ForgeLedgerClientOptions> options)
         {
             _http = http ?? throw new ArgumentNullException(nameof(http));
-            _options = options ?? throw new ArgumentNullException(nameof(options));
+            _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         }
 
         private Uri GetBaseUri()
@@ -79,7 +80,7 @@ namespace ForgeLedger.Client
             return body ?? string.Empty;
         }
 
-        private async Task<T> SendJsonAsync<T>(HttpMethod method, Uri endpoint, object payloadOrNull)
+        private async Task<T> SendJsonAsync<T>(HttpMethod method, Uri endpoint, object? payloadOrNull)
         {
             using var httpRequest = new HttpRequestMessage(method, endpoint);
 
@@ -105,7 +106,7 @@ namespace ForgeLedger.Client
             return model;
         }
 
-        private async Task SendNoContentAsync(HttpMethod method, Uri endpoint, object payloadOrNull)
+        private async Task SendNoContentAsync(HttpMethod method, Uri endpoint, object? payloadOrNull)
         {
             using var httpRequest = new HttpRequestMessage(method, endpoint);
 
