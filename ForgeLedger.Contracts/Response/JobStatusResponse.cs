@@ -12,4 +12,6 @@ public sealed class JobStatusResponse
     public string? CompletedAt { get; set; }
     public string? QueueName { get; set; }
     public string? QueueKind { get; set; }
+    public string? WebhookUrl { get; set; }
+    public string? WebhookStatus { get; set; }
 }

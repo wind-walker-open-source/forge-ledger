@@ -1,9 +1,12 @@
 using System.Globalization;
+using System.Text;
+using System.Text.Json;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using ForgeLedger.Contracts.Request;
 using ForgeLedger.Contracts.Response;
 using ForgeLedger.Core;
+using Microsoft.Extensions.Logging;
 using NUlid;
 
 namespace ForgeLedger.Stores;
@@ -13,11 +16,19 @@ public class DynamoDbForgeLedgerStore : IForgeLedgerStore
     private const string MetaSk = "META";
     private readonly IAmazonDynamoDB _ddb;
     private readonly string _table;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ILogger<DynamoDbForgeLedgerStore> _logger;
 
-    public DynamoDbForgeLedgerStore(IAmazonDynamoDB ddb, string tableName)
+    public DynamoDbForgeLedgerStore(
+        IAmazonDynamoDB ddb,
+        string tableName,
+        IHttpClientFactory httpClientFactory,
+        ILogger<DynamoDbForgeLedgerStore> logger)
     {
         _ddb = ddb;
         _table = tableName;
+        _httpClientFactory = httpClientFactory;
+        _logger = logger;
     }
 
     private const int DefaultTtlDays = 30;
@@ -71,6 +82,11 @@ public class DynamoDbForgeLedgerStore : IForgeLedgerStore
             };
         }
 
+        if (!string.IsNullOrWhiteSpace(req.WebhookUrl))
+        {
+            item["webhookUrl"] = new AttributeValue(req.WebhookUrl);
+        }
+
         // Ensure job header is only created once per id (ULID is unique, but keep it safe).
         await _ddb.PutItemAsync(new PutItemRequest
         {
@@ -87,7 +103,8 @@ public class DynamoDbForgeLedgerStore : IForgeLedgerStore
             ExpectedCount = req.ExpectedCount,
             CompletedCount = 0,
             FailedCount = 0,
-            CreatedAt = now.ToString("O")
+            CreatedAt = now.ToString("O"),
+            WebhookUrl = req.WebhookUrl
         };
     }
 
@@ -642,10 +659,90 @@ public class DynamoDbForgeLedgerStore : IForgeLedgerStore
                     [":now"] = new AttributeValue(DateTimeOffset.UtcNow.ToString("O"))
                 }
             }, ct);
+
+            // Fire webhook if configured
+            if (!string.IsNullOrWhiteSpace(job.WebhookUrl))
+            {
+                await InvokeWebhookAsync(jobId, job.WebhookUrl, ct);
+            }
         }
         catch (ConditionalCheckFailedException)
         {
             // Already transitioned by another worker.
+        }
+    }
+
+    private async Task InvokeWebhookAsync(string jobId, string webhookUrl, CancellationToken ct)
+    {
+        try
+        {
+            // Get fresh job status after completion
+            var finalJob = await GetJobAsync(jobId, ct);
+            if (finalJob is null) return;
+
+            var client = _httpClientFactory.CreateClient("Webhook");
+            var json = JsonSerializer.Serialize(finalJob, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            _logger.LogInformation(
+                "Invoking webhook for job {JobId} to {WebhookUrl}",
+                jobId, webhookUrl);
+
+            var response = await client.PostAsync(webhookUrl, content, ct);
+
+            var webhookStatus = response.IsSuccessStatusCode ? "SENT" : $"FAILED:{(int)response.StatusCode}";
+
+            // Update webhook status in DynamoDB
+            await _ddb.UpdateItemAsync(new UpdateItemRequest
+            {
+                TableName = _table,
+                Key = new Dictionary<string, AttributeValue>
+                {
+                    ["PK"] = new AttributeValue(Pk(jobId)),
+                    ["SK"] = new AttributeValue(MetaSk)
+                },
+                UpdateExpression = "SET webhookStatus = :status, webhookSentAt = :now",
+                ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+                {
+                    [":status"] = new AttributeValue(webhookStatus),
+                    [":now"] = new AttributeValue(DateTimeOffset.UtcNow.ToString("O"))
+                }
+            }, ct);
+
+            _logger.LogInformation(
+                "Webhook for job {JobId} completed with status {WebhookStatus}",
+                jobId, webhookStatus);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to invoke webhook for job {JobId}", jobId);
+
+            // Update webhook status to indicate failure
+            try
+            {
+                await _ddb.UpdateItemAsync(new UpdateItemRequest
+                {
+                    TableName = _table,
+                    Key = new Dictionary<string, AttributeValue>
+                    {
+                        ["PK"] = new AttributeValue(Pk(jobId)),
+                        ["SK"] = new AttributeValue(MetaSk)
+                    },
+                    UpdateExpression = "SET webhookStatus = :status",
+                    ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+                    {
+                        [":status"] = new AttributeValue($"FAILED:{ex.GetType().Name}")
+                    }
+                }, ct);
+            }
+            catch
+            {
+                // Best effort - don't fail the job completion due to webhook status update
+            }
         }
     }
 
@@ -655,6 +752,7 @@ public class DynamoDbForgeLedgerStore : IForgeLedgerStore
     private static JobStatusResponse ToJobStatus(Dictionary<string, AttributeValue> item)
     {
         string S(string k, string d = "") => item.TryGetValue(k, out var v) ? v.S : d;
+        string? SN(string k) => item.TryGetValue(k, out var v) ? v.S : null;
         int N(string k) => item.TryGetValue(k, out var v) && int.TryParse(v.N, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : 0;
 
         return new JobStatusResponse{
@@ -665,9 +763,11 @@ public class DynamoDbForgeLedgerStore : IForgeLedgerStore
             CompletedCount = N("completedCount"),
             FailedCount = N("failedCount"),
             CreatedAt = S("createdAt"),
-            CompletedAt = item.TryGetValue("completedAt", out var ca) ? ca.S : null,
-            QueueName = item.TryGetValue("queueName", out var qn) ? qn.S : null,
-            QueueKind = item.TryGetValue("queueKind", out var qk) ? qk.S : null
+            CompletedAt = SN("completedAt"),
+            QueueName = SN("queueName"),
+            QueueKind = SN("queueKind"),
+            WebhookUrl = SN("webhookUrl"),
+            WebhookStatus = SN("webhookStatus")
         };
     }
 

@@ -55,6 +55,12 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddAWSService<IAmazonDynamoDB>();
 builder.Services.AddAWSService<IAmazonSimpleSystemsManagement>();
 
+// HTTP client for webhooks
+builder.Services.AddHttpClient("Webhook", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
 // API key provider (reads from Parameter Store, falls back to appsettings)
 builder.Services.AddSingleton<ApiKeyProvider>();
 
@@ -62,13 +68,15 @@ builder.Services.AddSingleton<ApiKeyProvider>();
 builder.Services.AddSingleton<IForgeLedgerStore>(sp =>
 {
     var ddb = sp.GetRequiredService<IAmazonDynamoDB>();
+    var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+    var logger = sp.GetRequiredService<ILogger<DynamoDbForgeLedgerStore>>();
 
     var tableName =
         Environment.GetEnvironmentVariable("FORGELEDGER_TABLE")
         ?? Environment.GetEnvironmentVariable("JOBS_TABLE")
         ?? "ForgeLedger";
 
-    return new DynamoDbForgeLedgerStore(ddb, tableName);
+    return new DynamoDbForgeLedgerStore(ddb, tableName, httpClientFactory, logger);
 });
 
 var app = builder.Build();

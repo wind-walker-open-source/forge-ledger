@@ -15,4 +15,10 @@ public sealed class CreateJobRequest
     /// Defaults to 30 days. Set to 0 to disable TTL (not recommended).
     /// </summary>
     public int? TtlDays { get; set; }
+
+    /// <summary>
+    /// Optional URL to receive a POST callback when the job completes.
+    /// The callback payload will be the JobStatusResponse.
+    /// </summary>
+    public string? WebhookUrl { get; set; }
 }

@@ -9,4 +9,5 @@ public sealed class CreateJobResponse
     public int CompletedCount { get; set; }
     public int FailedCount { get; set; }
     public string CreatedAt { get; set; } = default!;
+    public string? WebhookUrl { get; set; }
 }
