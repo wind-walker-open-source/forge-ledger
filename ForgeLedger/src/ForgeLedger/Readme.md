@@ -302,4 +302,4 @@ Wind Walker Forge, LLC
 
 ## ⚖️ License
 
-TBD (likely MIT once stabilized)
+[MIT](../../../LICENSE)
