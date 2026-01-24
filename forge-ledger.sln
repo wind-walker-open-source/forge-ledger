@@ -2,6 +2,10 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ForgeLedger", "ForgeLedger\src\ForgeLedger\ForgeLedger.csproj", "{2D1D0D11-9CF6-4A01-ABCD-4775FBB98E83}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ForgeLedger.Client", "ForgeLedger.Client\ForgeLedger.Client.csproj", "{6E12E245-BA6D-49F3-BAAD-49FDBD54BF11}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ForgeLedger.Contracts", "ForgeLedger.Contracts\ForgeLedger.Contracts.csproj", "{2CB9DE69-B115-4DED-A2C3-0F186835EF2A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +16,13 @@ Global
 		{2D1D0D11-9CF6-4A01-ABCD-4775FBB98E83}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2D1D0D11-9CF6-4A01-ABCD-4775FBB98E83}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2D1D0D11-9CF6-4A01-ABCD-4775FBB98E83}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6E12E245-BA6D-49F3-BAAD-49FDBD54BF11}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6E12E245-BA6D-49F3-BAAD-49FDBD54BF11}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6E12E245-BA6D-49F3-BAAD-49FDBD54BF11}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6E12E245-BA6D-49F3-BAAD-49FDBD54BF11}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2CB9DE69-B115-4DED-A2C3-0F186835EF2A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2CB9DE69-B115-4DED-A2C3-0F186835EF2A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2CB9DE69-B115-4DED-A2C3-0F186835EF2A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2CB9DE69-B115-4DED-A2C3-0F186835EF2A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

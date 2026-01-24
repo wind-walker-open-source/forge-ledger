@@ -1,51 +1,244 @@
-# ASP.NET Core Minimal API Serverless Application
-
-This project shows how to run an ASP.NET Core Web API project as an AWS Lambda exposed through Amazon API Gateway. The NuGet package [Amazon.Lambda.AspNetCoreServer](https://www.nuget.org/packages/Amazon.Lambda.AspNetCoreServer) contains a Lambda function that is used to translate requests from API Gateway into the ASP.NET Core framework and then the responses from ASP.NET Core back to API Gateway.
 
 
-For more information about how the Amazon.Lambda.AspNetCoreServer package works and how to extend its behavior view its [README](https://github.com/aws/aws-lambda-dotnet/blob/master/Libraries/src/Amazon.Lambda.AspNetCoreServer/README.md) file in GitHub.
+# ForgeLedger
 
-## Executable Assembly ##
+**ForgeLedger** is a lightweight, deterministic job and workflow ledger for queue‑driven and distributed systems.  
+It provides a simple HTTP API for registering jobs, tracking work items, and determining when all processing has completed — making it ideal for coordinating long‑running batch operations (e.g., SQS fan‑out/fan‑in workflows).
 
-.NET Lambda projects that use C# top level statements like this project must be deployed as an executable assembly instead of a class library. To indicate to Lambda that the .NET function is an executable assembly the 
-Lambda function handler value is set to the .NET Assembly name. This is different then deploying as a class library where the function handler string includes the assembly, type and method name.
+> Part of the **Wind Walker Forge** ecosystem — tools designed for clarity, correctness, and operational integrity.
 
-To deploy as an executable assembly the Lambda runtime client must be started to listen for incoming events to process. For an ASP.NET Core application the Lambda runtime client is started by included the
-`Amazon.Lambda.AspNetCoreServer.Hosting` NuGet package and calling `AddAWSLambdaHosting(LambdaEventSource.HttpApi)` passing in the event source while configuring the services of the application. The
-event source can be API Gateway REST API and HTTP API or Application Load Balancer.  
+---
 
-### Project Files ###
+## ✨ Key Concepts
 
-* serverless.template - an AWS CloudFormation Serverless Application Model template file for declaring your Serverless functions and other AWS resources
-* aws-lambda-tools-defaults.json - default argument settings for use with Visual Studio and command line deployment tools for AWS
-* Program.cs - entry point to the application that contains all of the top level statements initializing the ASP.NET Core application.
-The call to `AddAWSLambdaHosting` configures the application to work in Lambda when it detects Lambda is the executing environment. 
-* Controllers\CalculatorController - example Web API controller
+- **Job** – A logical unit of work (e.g., "Process all invoices for 2026‑01‑15").
+- **Item** – A single work unit within a job (e.g., "Process invoice #12345").
+- **Ledger** – A durable record (stored in DynamoDB) tracking state transitions for auditability and correctness.
 
-You may also have a test project depending on the options selected.
+ForgeLedger is intentionally simple:
+- No authentication (yet)  
+- No queue coupling (works with SQS, SNS, Step Functions, cron jobs, etc.)  
+- No opinionated orchestration engine  
 
-## Here are some steps to follow from Visual Studio:
+It focuses on **state, determinism, and visibility**.
 
-To deploy your Serverless application, right click the project in Solution Explorer and select *Publish to AWS Lambda*.
+---
 
-To view your deployed application open the Stack View window by double-clicking the stack name shown beneath the AWS CloudFormation node in the AWS Explorer tree. The Stack View also displays the root URL to your published application.
+## 🏗 Architecture Overview
 
-## Here are some steps to follow to get started from the command line:
+- **Runtime:** AWS Lambda (.NET 8, Minimal APIs)
+- **API:** Amazon API Gateway (REST)
+- **Storage:** DynamoDB (single-table design)
+- **Documentation:** Swagger UI exposed at `/swagger`
 
-Once you have edited your template and code you can deploy your application using the [Amazon.Lambda.Tools Global Tool](https://github.com/aws/aws-extensions-for-dotnet-cli#aws-lambda-amazonlambdatools) from the command line.
-
-Install Amazon.Lambda.Tools Global Tools if not already installed.
 ```
-    dotnet tool install -g Amazon.Lambda.Tools
-```
-
-If already installed check if new version is available.
-```
-    dotnet tool update -g Amazon.Lambda.Tools
+Client / Worker
+    ↓ HTTP
+API Gateway
+    ↓
+ForgeLedger (Lambda / .NET API)
+    ↓
+DynamoDB (ForgeLedger table)
 ```
 
-Deploy application
+---
+
+## 📦 DynamoDB Table
+
+The stack provisions a DynamoDB table named:
+
 ```
-    cd "ForgeLedger/src/ForgeLedger"
-    dotnet lambda deploy-serverless
+ForgeLedger
 ```
+
+Schema:
+
+| Attribute | Type | Purpose |
+|--------|------|---------|
+| PK | S | Partition key (e.g., JOB#<jobId>) |
+| SK | S | Sort key (e.g., META, ITEM#<itemId>) |
+
+This supports a single-table pattern for:
+- Job metadata
+- Item state
+- Aggregated counts
+
+---
+
+## 🚀 API Endpoints
+
+Base path (after deploy):
+
+```
+https://<api-id>.execute-api.<region>.amazonaws.com/Prod
+```
+
+### Health
+```
+GET /health
+```
+
+### Create Job
+```
+POST /jobs
+```
+
+**Response**
+```json
+{
+  "jobId": "01HZX..."
+}
+```
+
+---
+
+### Register Items for a Job
+```
+POST /jobs/{jobId}/items:register
+```
+
+Registers one or more items that must be processed for the job.
+
+---
+
+### Claim Item
+```
+POST /jobs/{jobId}/items/{itemId}/claim
+```
+
+Marks an item as actively being processed by a worker.
+
+---
+
+### Complete Item
+```
+POST /jobs/{jobId}/items/{itemId}/complete
+```
+
+Marks an item as successfully completed.
+
+---
+
+### Fail Item
+```
+POST /jobs/{jobId}/items/{itemId}/fail
+```
+
+Marks an item as failed (does not remove it from the ledger).
+
+---
+
+### Get Job Status
+```
+GET /jobs/{jobId}
+```
+
+Typical response:
+
+```json
+{
+  "jobId": "01HZX...",
+  "total": 1500,
+  "completed": 1500,
+  "failed": 2,
+  "inProgress": 0,
+  "isComplete": true
+}
+```
+
+---
+
+## 📖 Swagger UI
+
+Interactive documentation is available at:
+
+```
+GET /swagger
+```
+
+Example:
+```
+https://<api-id>.execute-api.<region>.amazonaws.com/Prod/swagger
+```
+
+---
+
+## 🧪 Local Development
+
+Run locally with:
+
+```bash
+dotnet run
+```
+
+Then open:
+
+```
+https://localhost:<port>/swagger
+```
+
+---
+
+## ☁️ Deployment
+
+This project uses the AWS .NET Lambda serverless template.
+
+Deploy using:
+
+```bash
+dotnet lambda deploy-serverless
+```
+
+You will be prompted for:
+- Stack name (e.g., `forge-ledger`)
+- AWS region
+- AWS profile
+
+CloudFormation provisions:
+- API Gateway
+- Lambda function
+- DynamoDB table (`ForgeLedger`)
+- IAM permissions
+
+---
+
+## 🧭 Design Goals
+
+ForgeLedger is intentionally designed around:
+
+- **Determinism over convenience**
+- **Auditability over magic**
+- **Explicit state over implicit behavior**
+- **Operational clarity over abstraction**
+
+This makes it suitable for:
+- Financial batch processing
+- Payment orchestration
+- Idempotent queue processing
+- Distributed worker coordination
+- Long‑running fan‑out workflows
+
+---
+
+## 🛣 Roadmap (Early Ideas)
+
+- [ ] Auth / API keys or IAM integration
+- [ ] Job expiration / TTL cleanup
+- [ ] Native SQS helper SDK
+- [ ] Webhook callbacks on completion
+- [ ] EventBridge integration
+- [ ] Metrics export (CloudWatch / OpenTelemetry)
+
+---
+
+## 🧔 Author
+
+Built by **Lister Potter**  
+Wind Walker Forge, LLC  
+> Quality forged through architecture & design
+
+---
+
+## ⚖️ License
+
+TBD (likely MIT once stabilized)

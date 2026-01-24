@@ -9,8 +9,16 @@
         <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
         <!-- Generate ready to run images during publishing to improvement cold starts. -->
         <PublishReadyToRun>true</PublishReadyToRun>
+        <LangVersion>default</LangVersion>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="Amazon.Lambda.AspNetCoreServer.Hosting" Version="1.7.2"/>
+        <PackageReference Include="Amazon.Lambda.AspNetCoreServer.Hosting" Version="1.7.2" />
+        <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.10.7" />
+        <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.3.19" />
+        <PackageReference Include="NUlid" Version="1.7.3" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.0" />
+    </ItemGroup>
+    <ItemGroup>
+      <ProjectReference Include="..\..\..\ForgeLedger.Contracts\ForgeLedger.Contracts.csproj" />
     </ItemGroup>
 </Project>
