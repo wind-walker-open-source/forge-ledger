@@ -83,6 +83,42 @@
                 }
               }
             },
+            "/jobs/{jobId}/items": {
+              "get": {
+                "parameters": [
+                  {
+                    "name": "jobId",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "type": "string" }
+                  },
+                  {
+                    "name": "status",
+                    "in": "query",
+                    "required": false,
+                    "schema": { "type": "string" }
+                  },
+                  {
+                    "name": "limit",
+                    "in": "query",
+                    "required": false,
+                    "schema": { "type": "integer" }
+                  },
+                  {
+                    "name": "nextToken",
+                    "in": "query",
+                    "required": false,
+                    "schema": { "type": "string" }
+                  }
+                ],
+                "responses": { "200": { "description": "OK" } },
+                "x-amazon-apigateway-integration": {
+                  "type": "aws_proxy",
+                  "httpMethod": "POST",
+                  "uri": { "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AspNetCoreFunction.Arn}/invocations" }
+                }
+              }
+            },
             "/jobs/{jobId}/items/{itemId}/claim": {
               "post": {
                 "parameters": [
@@ -270,6 +306,14 @@
               "RestApiId": { "Ref": "ForgeLedgerApi" },
               "Path": "/jobs/{jobId}/items:register",
               "Method": "POST"
+            }
+          },
+          "GetItemsGet": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "ForgeLedgerApi" },
+              "Path": "/jobs/{jobId}/items",
+              "Method": "GET"
             }
           },
           "ClaimItemPost": {

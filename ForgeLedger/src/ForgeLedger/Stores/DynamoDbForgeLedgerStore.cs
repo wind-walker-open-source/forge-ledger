@@ -238,6 +238,72 @@ public class DynamoDbForgeLedgerStore : IForgeLedgerStore
         return ToJobStatus(resp.Item);
     }
 
+    public async Task<GetItemsResponse> GetItemsAsync(string jobId, string? status, int? limit, string? nextToken, CancellationToken ct)
+    {
+        var queryRequest = new QueryRequest
+        {
+            TableName = _table,
+            KeyConditionExpression = "PK = :pk AND begins_with(SK, :itemPrefix)",
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":pk"] = new AttributeValue(Pk(jobId)),
+                [":itemPrefix"] = new AttributeValue("ITEM#")
+            },
+            Limit = limit ?? 100
+        };
+
+        // Filter by status if provided
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            queryRequest.FilterExpression = "itemStatus = :status";
+            queryRequest.ExpressionAttributeValues[":status"] = new AttributeValue(status.ToUpperInvariant());
+        }
+
+        // Handle pagination
+        if (!string.IsNullOrWhiteSpace(nextToken))
+        {
+            try
+            {
+                var decodedToken = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(nextToken));
+                var parts = decodedToken.Split('|');
+                if (parts.Length == 2)
+                {
+                    queryRequest.ExclusiveStartKey = new Dictionary<string, AttributeValue>
+                    {
+                        ["PK"] = new AttributeValue(parts[0]),
+                        ["SK"] = new AttributeValue(parts[1])
+                    };
+                }
+            }
+            catch
+            {
+                // Invalid token, ignore and start from beginning
+            }
+        }
+
+        var response = await _ddb.QueryAsync(queryRequest, ct);
+
+        var items = response.Items
+            .Select(ToItemResponse)
+            .ToList();
+
+        string? newNextToken = null;
+        if (response.LastEvaluatedKey is { Count: > 0 })
+        {
+            var pk = response.LastEvaluatedKey["PK"].S;
+            var sk = response.LastEvaluatedKey["SK"].S;
+            newNextToken = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{pk}|{sk}"));
+        }
+
+        return new GetItemsResponse
+        {
+            JobId = jobId,
+            Items = items,
+            TotalCount = items.Count,
+            NextToken = newNextToken
+        };
+    }
+
     public async Task<JobStatusResponse> MarkItemCompletedAsync(string jobId, string itemId, ItemCompleteRequest req, CancellationToken ct)
     {
         // Enforce state machine: PENDING -> PROCESSING -> COMPLETED
@@ -473,5 +539,22 @@ public class DynamoDbForgeLedgerStore : IForgeLedgerStore
             QueueName = item.TryGetValue("queueName", out var qn) ? qn.S : null,
             QueueKind = item.TryGetValue("queueKind", out var qk) ? qk.S : null
         };
-    }   
+    }
+
+    private static JobItemResponse ToItemResponse(Dictionary<string, AttributeValue> item)
+    {
+        string S(string k, string d = "") => item.TryGetValue(k, out var v) ? v.S : d;
+        string? SN(string k) => item.TryGetValue(k, out var v) ? v.S : null;
+        int N(string k) => item.TryGetValue(k, out var v) && int.TryParse(v.N, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : 0;
+
+        return new JobItemResponse
+        {
+            ItemId = S("itemId"),
+            ItemStatus = S("itemStatus", "PENDING"),
+            Attempts = N("attempts"),
+            ClaimedAt = SN("claimedAt"),
+            UpdatedAt = SN("updatedAt"),
+            LastError = SN("lastError")
+        };
+    }
 }

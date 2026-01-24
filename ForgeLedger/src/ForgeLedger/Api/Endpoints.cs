@@ -122,6 +122,26 @@ public static class Endpoints
         })
         .WithName("RegisterItems");
 
+        // Get items for a job with optional status filter
+        app.MapGet("/jobs/{jobId}/items", async (
+            string jobId,
+            string? status,
+            int? limit,
+            string? nextToken,
+            IForgeLedgerStore store,
+            CancellationToken ct) =>
+        {
+            var result = await store.GetItemsAsync(jobId, status, limit, nextToken, ct);
+            return Results.Ok(result);
+        })
+        .WithName("GetItems")
+        .Produces<GetItemsResponse>(StatusCodes.Status200OK)
+        .WithSummary("Get items for a job")
+        .WithDescription(
+            "Returns items for a job with optional filtering by status. " +
+            "Valid status values: PENDING, PROCESSING, COMPLETED, FAILED. " +
+            "Supports pagination via limit and nextToken parameters.");
+
         // Claim an item for processing
         app.MapPost("/jobs/{jobId}/items/{itemId}:claim", async (string jobId, string itemId, IForgeLedgerStore store, CancellationToken ct) =>
         {
