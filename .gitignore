@@ -3,3 +3,12 @@ obj/
 /packages/
 riderModule.iml
 /_ReSharper.Caches/
+
+# IDE
+.idea/
+*.DotSettings.user
+
+# NuGet
+nuget/
+*.nupkg
+*.snupkg

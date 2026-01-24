@@ -4,6 +4,33 @@
         <LangVersion>default</LangVersion>
         <Nullable>enable</Nullable>
         <TargetFramework>netstandard2.0</TargetFramework>
+
+        <!-- NuGet Package Metadata -->
+        <PackageId>ForgeLedger.Contracts</PackageId>
+        <Version>0.1.0</Version>
+        <Authors>Lister Potter</Authors>
+        <Company>Wind Walker Forge, LLC</Company>
+        <Description>Shared request/response contracts for ForgeLedger job tracking API</Description>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/wind-walker-open-source/forge-ledger</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/wind-walker-open-source/forge-ledger</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageTags>forgeledger;job-tracking;workflow;contracts;dto</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+
+        <!-- SourceLink for debugging -->
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    </ItemGroup>
 
 </Project>

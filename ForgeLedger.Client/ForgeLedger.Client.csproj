@@ -4,7 +4,30 @@
         <TargetFramework>netstandard2.0</TargetFramework>
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
+
+        <!-- NuGet Package Metadata -->
+        <PackageId>ForgeLedger.Client</PackageId>
+        <Version>0.1.0</Version>
+        <Authors>Lister Potter</Authors>
+        <Company>Wind Walker Forge, LLC</Company>
+        <Description>.NET client SDK for ForgeLedger - a lightweight, deterministic job and workflow ledger for queue-driven and distributed systems</Description>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/wind-walker-open-source/forge-ledger</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/wind-walker-open-source/forge-ledger</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageTags>forgeledger;job-tracking;workflow;distributed-systems;aws;dynamodb;sqs;fan-out</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+
+        <!-- SourceLink for debugging -->
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\ForgeLedger.Contracts\ForgeLedger.Contracts.csproj" />
@@ -16,6 +39,7 @@
       <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.2" />
       <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
       <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.2" />
+      <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
       <PackageReference Include="System.Text.Json" Version="10.0.2" />
     </ItemGroup>
 
