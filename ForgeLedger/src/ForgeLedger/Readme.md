@@ -16,9 +16,9 @@ It provides a simple HTTP API for registering jobs, tracking work items, and det
 - **Ledger** – A durable record (stored in DynamoDB) tracking state transitions for auditability and correctness.
 
 ForgeLedger is intentionally simple:
-- No authentication (yet)  
-- No queue coupling (works with SQS, SNS, Step Functions, cron jobs, etc.)  
-- No opinionated orchestration engine  
+- API key authentication via `X-API-KEY` header
+- No queue coupling (works with SQS, SNS, Step Functions, cron jobs, etc.)
+- No opinionated orchestration engine
 
 It focuses on **state, determinism, and visibility**.
 
@@ -57,11 +57,13 @@ Schema:
 |--------|------|---------|
 | PK | S | Partition key (e.g., JOB#<jobId>) |
 | SK | S | Sort key (e.g., META, ITEM#<itemId>) |
+| ttl | N | TTL timestamp for auto-expiration |
 
 This supports a single-table pattern for:
-- Job metadata
+- Job metadata (with optional webhook URL)
 - Item state
 - Aggregated counts
+- Automatic cleanup via DynamoDB TTL (default 30 days)
 
 ---
 
@@ -83,48 +85,26 @@ GET /health
 POST /jobs
 ```
 
-**Response**
+**Request Body**
 ```json
 {
-  "jobId": "01HZX..."
+  "jobType": "invoice-processing",
+  "expectedCount": 100,
+  "ttlDays": 30,
+  "webhookUrl": "https://example.com/webhook"
 }
 ```
 
----
-
-### Register Items for a Job
+**Response**
+```json
+{
+  "jobId": "01HZX...",
+  "status": "PENDING",
+  "jobType": "invoice-processing",
+  "expectedCount": 100,
+  "webhookUrl": "https://example.com/webhook"
+}
 ```
-POST /jobs/{jobId}/items:register
-```
-
-Registers one or more items that must be processed for the job.
-
----
-
-### Claim Item
-```
-POST /jobs/{jobId}/items/{itemId}/claim
-```
-
-Marks an item as actively being processed by a worker.
-
----
-
-### Complete Item
-```
-POST /jobs/{jobId}/items/{itemId}/complete
-```
-
-Marks an item as successfully completed.
-
----
-
-### Fail Item
-```
-POST /jobs/{jobId}/items/{itemId}/fail
-```
-
-Marks an item as failed (does not remove it from the ledger).
 
 ---
 
@@ -133,16 +113,91 @@ Marks an item as failed (does not remove it from the ledger).
 GET /jobs/{jobId}
 ```
 
-Typical response:
-
+**Response**
 ```json
 {
   "jobId": "01HZX...",
-  "total": 1500,
-  "completed": 1500,
-  "failed": 2,
-  "inProgress": 0,
-  "isComplete": true
+  "status": "COMPLETED",
+  "jobType": "invoice-processing",
+  "expectedCount": 100,
+  "completedCount": 98,
+  "failedCount": 2,
+  "createdAt": "2026-01-24T12:00:00Z",
+  "completedAt": "2026-01-24T14:30:00Z",
+  "webhookStatus": "SENT"
+}
+```
+
+---
+
+### List Items for a Job
+```
+GET /jobs/{jobId}/items?status=FAILED&limit=50&nextToken=...
+```
+
+Returns items with optional filtering by status (PENDING, PROCESSING, COMPLETED, FAILED) and pagination.
+
+---
+
+### Register Items for a Job
+```
+POST /jobs/{jobId}/items:register
+```
+
+Registers one or more items that must be processed for the job. Idempotent.
+
+---
+
+### Claim Item
+```
+POST /jobs/{jobId}/items/{itemId}:claim
+```
+
+Marks an item as actively being processed by a worker.
+
+---
+
+### Complete Item
+```
+POST /jobs/{jobId}/items/{itemId}:complete
+```
+
+Marks an item as successfully completed.
+
+---
+
+### Fail Item
+```
+POST /jobs/{jobId}/items/{itemId}:fail
+```
+
+Marks an item as failed (does not remove it from the ledger).
+
+---
+
+### Retry Failed Item
+```
+POST /jobs/{jobId}/items/{itemId}:retry
+```
+
+Resets a FAILED item back to PENDING so it can be claimed and processed again. Decrements the job's failedCount and reverts COMPLETED_WITH_FAILURES jobs to RUNNING.
+
+---
+
+## 🔐 Authentication
+
+All endpoints (except `/`, `/health`, `/swagger/*`) require an API key via the `X-API-KEY` header.
+
+The API key is loaded from (in order):
+1. **appsettings.json**: `ForgeLedger:ApiKey`
+2. **AWS Parameter Store**: `/ForgeLedger/API/Key` (fallback)
+
+For local development, set the key in `appsettings.Development.json`:
+```json
+{
+  "ForgeLedger": {
+    "ApiKey": "your-dev-api-key"
+  }
 }
 ```
 
@@ -220,14 +275,20 @@ This makes it suitable for:
 
 ---
 
-## 🛣 Roadmap (Early Ideas)
+## 🛣 Roadmap
 
-- [ ] Auth / API keys or IAM integration
-- [ ] Job expiration / TTL cleanup
+### ✅ Completed
+- [x] API key authentication
+- [x] Job expiration / TTL cleanup
+- [x] Webhook callbacks on completion
+- [x] Retry failed items
+- [x] List items with status filter
+
+### 🔜 Future Ideas
 - [ ] Native SQS helper SDK
-- [ ] Webhook callbacks on completion
 - [ ] EventBridge integration
 - [ ] Metrics export (CloudWatch / OpenTelemetry)
+- [ ] Batch retry for all failed items
 
 ---
 
