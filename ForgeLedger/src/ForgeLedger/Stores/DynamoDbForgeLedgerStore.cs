@@ -20,6 +20,8 @@ public class DynamoDbForgeLedgerStore : IForgeLedgerStore
         _table = tableName;
     }
 
+    private const int DefaultTtlDays = 30;
+
     public async Task<CreateJobResponse> CreateJobAsync(CreateJobRequest req, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(req.JobType))
@@ -29,6 +31,7 @@ public class DynamoDbForgeLedgerStore : IForgeLedgerStore
 
         var jobId = Ulid.NewUlid().ToString();
         var now = DateTimeOffset.UtcNow;
+        var ttlDays = req.TtlDays ?? DefaultTtlDays;
 
         var pk = Pk(jobId);
 
@@ -44,6 +47,14 @@ public class DynamoDbForgeLedgerStore : IForgeLedgerStore
             ["failedCount"] = new AttributeValue { N = "0" },
             ["createdAt"] = new AttributeValue(now.ToString("O"))
         };
+
+        // Set TTL if enabled (ttlDays > 0)
+        if (ttlDays > 0)
+        {
+            var ttlTimestamp = now.AddDays(ttlDays).ToUnixTimeSeconds();
+            item["ttl"] = new AttributeValue { N = ttlTimestamp.ToString(CultureInfo.InvariantCulture) };
+            item["ttlDays"] = new AttributeValue { N = ttlDays.ToString(CultureInfo.InvariantCulture) };
+        }
 
         Console.WriteLine($"Creating job {jobId} of type {req.JobType} expecting {req.ExpectedCount} items.");
 
@@ -90,6 +101,25 @@ public class DynamoDbForgeLedgerStore : IForgeLedgerStore
                 AlreadyExisted = 0
             };
 
+        // Get TTL from job metadata (if set)
+        long? jobTtl = null;
+        var jobMeta = await _ddb.GetItemAsync(new GetItemRequest
+        {
+            TableName = _table,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                ["PK"] = new AttributeValue(Pk(jobId)),
+                ["SK"] = new AttributeValue(MetaSk)
+            },
+            ProjectionExpression = "ttl"
+        }, ct);
+
+        if (jobMeta.Item != null && jobMeta.Item.TryGetValue("ttl", out var ttlAttr) &&
+            long.TryParse(ttlAttr.N, out var parsedTtl))
+        {
+            jobTtl = parsedTtl;
+        }
+
         var registered = 0;
         var existed = 0;
 
@@ -98,19 +128,27 @@ public class DynamoDbForgeLedgerStore : IForgeLedgerStore
             var itemId = (raw ?? string.Empty).Trim();
             if (itemId.Length == 0) continue;
 
+            var itemData = new Dictionary<string, AttributeValue>
+            {
+                ["PK"] = new AttributeValue(Pk(jobId)),
+                ["SK"] = new AttributeValue(ItemSk(itemId)),
+                ["jobId"] = new AttributeValue(jobId),
+                ["itemId"] = new AttributeValue(itemId),
+                ["itemStatus"] = new AttributeValue("PENDING"),
+                ["attempts"] = new AttributeValue { N = "0" },
+                ["updatedAt"] = new AttributeValue(DateTimeOffset.UtcNow.ToString("O"))
+            };
+
+            // Inherit TTL from job
+            if (jobTtl.HasValue)
+            {
+                itemData["ttl"] = new AttributeValue { N = jobTtl.Value.ToString(CultureInfo.InvariantCulture) };
+            }
+
             var put = new PutItemRequest
             {
                 TableName = _table,
-                Item = new Dictionary<string, AttributeValue>
-                {
-                    ["PK"] = new AttributeValue(Pk(jobId)),
-                    ["SK"] = new AttributeValue(ItemSk(itemId)),
-                    ["jobId"] = new AttributeValue(jobId),
-                    ["itemId"] = new AttributeValue(itemId),
-                    ["itemStatus"] = new AttributeValue("PENDING"),
-                    ["attempts"] = new AttributeValue { N = "0" },
-                    ["updatedAt"] = new AttributeValue(DateTimeOffset.UtcNow.ToString("O"))
-                },
+                Item = itemData,
                 ConditionExpression = "attribute_not_exists(PK) AND attribute_not_exists(SK)"
             };
 
@@ -127,7 +165,7 @@ public class DynamoDbForgeLedgerStore : IForgeLedgerStore
 
         return new RegisterItemsResponse
             {
-                Registered = registered, 
+                Registered = registered,
                 AlreadyExisted = existed
             };
     }

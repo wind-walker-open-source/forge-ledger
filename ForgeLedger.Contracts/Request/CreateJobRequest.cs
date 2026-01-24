@@ -9,4 +9,10 @@ public sealed class CreateJobRequest
     public string? QueueName { get; set; }
     public string? QueueKind { get; set; }
     public Dictionary<string, string>? Metadata { get; set; }
+
+    /// <summary>
+    /// Number of days until the job and its items are automatically deleted.
+    /// Defaults to 30 days. Set to 0 to disable TTL (not recommended).
+    /// </summary>
+    public int? TtlDays { get; set; }
 }
