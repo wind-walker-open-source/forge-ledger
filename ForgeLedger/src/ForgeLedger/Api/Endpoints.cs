@@ -166,6 +166,20 @@ public static class Endpoints
         })
         .WithName("FailItem");
 
+        // Retry a failed item (reset to PENDING)
+        app.MapPost("/jobs/{jobId}/items/{itemId}:retry", async (string jobId, string itemId, IForgeLedgerStore store, CancellationToken ct) =>
+        {
+            var result = await store.RetryItemAsync(jobId, itemId, ct);
+            return Results.Ok(result);
+        })
+        .WithName("RetryItem")
+        .Produces<JobStatusResponse>(StatusCodes.Status200OK)
+        .ProducesProblem(StatusCodes.Status409Conflict)
+        .WithSummary("Retry a failed item")
+        .WithDescription(
+            "Resets a FAILED item back to PENDING so it can be claimed and processed again. " +
+            "Decrements the job's failedCount. If the job was COMPLETED_WITH_FAILURES, it reverts to RUNNING.");
+
         // Read job status
         app.MapGet("/jobs/{jobId}", async (string jobId, IForgeLedgerStore store, CancellationToken ct) =>
         {

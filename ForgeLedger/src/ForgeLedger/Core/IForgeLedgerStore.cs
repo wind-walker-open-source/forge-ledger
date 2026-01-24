@@ -12,4 +12,5 @@ public interface IForgeLedgerStore
     Task<GetItemsResponse> GetItemsAsync(string jobId, string? status, int? limit, string? nextToken, CancellationToken ct);
     Task<JobStatusResponse> MarkItemCompletedAsync(string jobId, string itemId, ItemCompleteRequest req, CancellationToken ct);
     Task<JobStatusResponse> MarkItemFailedAsync(string jobId, string itemId, ItemFailRequest req, CancellationToken ct);
+    Task<JobStatusResponse> RetryItemAsync(string jobId, string itemId, CancellationToken ct);
 }

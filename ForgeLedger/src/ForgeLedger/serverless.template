@@ -218,6 +218,30 @@
                   "uri": { "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AspNetCoreFunction.Arn}/invocations" }
                 }
               }
+            },
+            "/jobs/{jobId}/items/{itemId}/retry": {
+              "post": {
+                "parameters": [
+                  {
+                    "name": "jobId",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "type": "string" }
+                  },
+                  {
+                    "name": "itemId",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "type": "string" }
+                  }
+                ],
+                "responses": { "200": { "description": "OK" }, "409": { "description": "Conflict" } },
+                "x-amazon-apigateway-integration": {
+                  "type": "aws_proxy",
+                  "httpMethod": "POST",
+                  "uri": { "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AspNetCoreFunction.Arn}/invocations" }
+                }
+              }
             }
           }
         }
@@ -341,6 +365,14 @@
             "Properties": {
               "RestApiId": { "Ref": "ForgeLedgerApi" },
               "Path": "/jobs/{jobId}/items/{itemId}/fail",
+              "Method": "POST"
+            }
+          },
+          "RetryItemPost": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "ForgeLedgerApi" },
+              "Path": "/jobs/{jobId}/items/{itemId}/retry",
               "Method": "POST"
             }
           },

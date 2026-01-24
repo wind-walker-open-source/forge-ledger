@@ -515,6 +515,98 @@ public class DynamoDbForgeLedgerStore : IForgeLedgerStore
         return job ?? throw new InvalidOperationException($"Job '{jobId}' not found.");
     }
 
+    public async Task<JobStatusResponse> RetryItemAsync(string jobId, string itemId, CancellationToken ct)
+    {
+        // Only FAILED items can be retried
+        var current = await _ddb.GetItemAsync(new GetItemRequest
+        {
+            TableName = _table,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                ["PK"] = new AttributeValue(Pk(jobId)),
+                ["SK"] = new AttributeValue(ItemSk(itemId))
+            },
+            ConsistentRead = true
+        }, ct);
+
+        if (current.Item is null || current.Item.Count == 0)
+        {
+            throw new InvalidOperationException($"Item '{itemId}' was not registered for job '{jobId}'.");
+        }
+
+        var status = current.Item.TryGetValue("itemStatus", out var s) ? s.S : "PENDING";
+
+        if (!string.Equals(status, "FAILED", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Cannot retry item in state '{status}'. Only FAILED items can be retried.");
+        }
+
+        // Transition item from FAILED -> PENDING
+        try
+        {
+            await _ddb.UpdateItemAsync(new UpdateItemRequest
+            {
+                TableName = _table,
+                Key = new Dictionary<string, AttributeValue>
+                {
+                    ["PK"] = new AttributeValue(Pk(jobId)),
+                    ["SK"] = new AttributeValue(ItemSk(itemId))
+                },
+                ConditionExpression = "itemStatus = :failed",
+                UpdateExpression = "SET itemStatus = :pending, updatedAt = :now REMOVE lastError",
+                ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+                {
+                    [":failed"] = new AttributeValue("FAILED"),
+                    [":pending"] = new AttributeValue("PENDING"),
+                    [":now"] = new AttributeValue(DateTimeOffset.UtcNow.ToString("O"))
+                }
+            }, ct);
+
+            // Decrement failedCount on job
+            await _ddb.UpdateItemAsync(new UpdateItemRequest
+            {
+                TableName = _table,
+                Key = new Dictionary<string, AttributeValue>
+                {
+                    ["PK"] = new AttributeValue(Pk(jobId)),
+                    ["SK"] = new AttributeValue(MetaSk)
+                },
+                UpdateExpression = "ADD failedCount :negOne SET updatedAt = :now",
+                ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+                {
+                    [":negOne"] = new AttributeValue { N = "-1" },
+                    [":now"] = new AttributeValue(DateTimeOffset.UtcNow.ToString("O"))
+                }
+            }, ct);
+
+            // If job was COMPLETED_WITH_FAILURES, revert to RUNNING
+            await _ddb.UpdateItemAsync(new UpdateItemRequest
+            {
+                TableName = _table,
+                Key = new Dictionary<string, AttributeValue>
+                {
+                    ["PK"] = new AttributeValue(Pk(jobId)),
+                    ["SK"] = new AttributeValue(MetaSk)
+                },
+                ConditionExpression = "status = :completedWithFailures",
+                UpdateExpression = "SET status = :running, updatedAt = :now REMOVE completedAt",
+                ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+                {
+                    [":completedWithFailures"] = new AttributeValue("COMPLETED_WITH_FAILURES"),
+                    [":running"] = new AttributeValue("RUNNING"),
+                    [":now"] = new AttributeValue(DateTimeOffset.UtcNow.ToString("O"))
+                }
+            }, ct);
+        }
+        catch (ConditionalCheckFailedException)
+        {
+            throw new InvalidOperationException("Cannot retry item because it is no longer FAILED.");
+        }
+
+        var job = await GetJobAsync(jobId, ct);
+        return job ?? throw new InvalidOperationException($"Job '{jobId}' not found.");
+    }
+
     private async Task TryMarkJobCompletedAsync(string jobId, CancellationToken ct)
     {
         // Read current counts and set status if complete.
