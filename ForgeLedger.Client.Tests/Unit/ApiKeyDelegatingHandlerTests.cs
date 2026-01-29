@@ -50,7 +50,7 @@ public class ApiKeyDelegatingHandlerTests
             BaseUrl = "https://api.example.com",
             ApiKey = null // No API key configured
         });
-        var apiKeyProvider = new ApiKeyProvider(options, ssm: null); // No SSM client either
+        var apiKeyProvider = new ApiKeyProvider(options, secretsManager: null); // No Secrets Manager client either
 
         var innerHandler = new MockHttpMessageHandler();
         innerHandler.EnqueueResponse(HttpStatusCode.OK, "{}");

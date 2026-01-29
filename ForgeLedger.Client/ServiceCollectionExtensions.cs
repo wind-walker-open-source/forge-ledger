@@ -1,5 +1,5 @@
 using System;
-using Amazon.SimpleSystemsManagement;
+using Amazon.SecretsManager;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -9,7 +9,7 @@ public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Adds the ForgeLedger client with API key authentication.
-    /// API key is loaded from options first (via appsettings), then falls back to AWS Parameter Store.
+    /// API key is loaded from options first (via appsettings), then falls back to AWS Secrets Manager.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configure">Action to configure client options.</param>
@@ -20,12 +20,12 @@ public static class ServiceCollectionExtensions
     {
         services.Configure(configure);
 
-        // Register SSM client if not already registered (optional - will be null if AWS not configured)
-        services.TryAddSingleton<IAmazonSimpleSystemsManagement>(_ =>
+        // Register Secrets Manager client if not already registered (optional - will be null if AWS not configured)
+        services.TryAddSingleton<IAmazonSecretsManager>(_ =>
         {
             try
             {
-                return new AmazonSimpleSystemsManagementClient();
+                return new AmazonSecretsManagerClient();
             }
             catch
             {

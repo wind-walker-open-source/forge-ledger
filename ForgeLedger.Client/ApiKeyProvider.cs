@@ -1,8 +1,8 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Amazon.SimpleSystemsManagement;
-using Amazon.SimpleSystemsManagement.Model;
+using Amazon.SecretsManager;
+using Amazon.SecretsManager.Model;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -10,12 +10,12 @@ namespace ForgeLedger.Client;
 
 /// <summary>
 /// Provides API key resolution for the ForgeLedger client.
-/// Checks options first (from appsettings), then falls back to AWS Parameter Store.
+/// Checks options first (from appsettings), then falls back to AWS Secrets Manager.
 /// </summary>
 public class ApiKeyProvider
 {
     private readonly ForgeLedgerClientOptions _options;
-    private readonly IAmazonSimpleSystemsManagement? _ssm;
+    private readonly IAmazonSecretsManager? _secretsManager;
     private readonly ILogger<ApiKeyProvider>? _logger;
 
     private string? _cachedApiKey;
@@ -25,11 +25,11 @@ public class ApiKeyProvider
 
     public ApiKeyProvider(
         IOptions<ForgeLedgerClientOptions> options,
-        IAmazonSimpleSystemsManagement? ssm = null,
+        IAmazonSecretsManager? secretsManager = null,
         ILogger<ApiKeyProvider>? logger = null)
     {
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-        _ssm = ssm;
+        _secretsManager = secretsManager;
         _logger = logger;
     }
 
@@ -58,8 +58,8 @@ public class ApiKeyProvider
             }
             else
             {
-                // Fall back to Parameter Store
-                apiKey = await TryGetFromParameterStoreAsync(ct).ConfigureAwait(false);
+                // Fall back to Secrets Manager
+                apiKey = await TryGetFromSecretsManagerAsync(ct).ConfigureAwait(false);
             }
 
             if (!string.IsNullOrEmpty(apiKey))
@@ -76,40 +76,39 @@ public class ApiKeyProvider
         }
     }
 
-    private async Task<string?> TryGetFromParameterStoreAsync(CancellationToken ct)
+    private async Task<string?> TryGetFromSecretsManagerAsync(CancellationToken ct)
     {
-        if (_ssm == null)
+        if (_secretsManager == null)
         {
-            _logger?.LogDebug("SSM client not available, skipping Parameter Store lookup");
+            _logger?.LogDebug("Secrets Manager client not available, skipping secret lookup");
             return null;
         }
 
-        var parameterPath = _options.ParameterStorePath;
-        if (string.IsNullOrEmpty(parameterPath))
+        var secretName = _options.ApiKeySecretName;
+        if (string.IsNullOrEmpty(secretName))
         {
-            _logger?.LogDebug("Parameter Store path not configured");
+            _logger?.LogDebug("Secret name not configured");
             return null;
         }
 
         try
         {
-            var response = await _ssm.GetParameterAsync(new GetParameterRequest
+            var response = await _secretsManager.GetSecretValueAsync(new GetSecretValueRequest
             {
-                Name = parameterPath,
-                WithDecryption = true
+                SecretId = secretName
             }, ct).ConfigureAwait(false);
 
-            _logger?.LogInformation("API key loaded from Parameter Store at {Path}", parameterPath);
-            return response.Parameter?.Value;
+            _logger?.LogInformation("API key loaded from Secrets Manager at {SecretName}", secretName);
+            return response.SecretString;
         }
-        catch (ParameterNotFoundException)
+        catch (ResourceNotFoundException)
         {
-            _logger?.LogDebug("Parameter {Path} not found in Parameter Store", parameterPath);
+            _logger?.LogDebug("Secret {SecretName} not found in Secrets Manager", secretName);
             return null;
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Failed to retrieve API key from Parameter Store at {Path}", parameterPath);
+            _logger?.LogWarning(ex, "Failed to retrieve API key from Secrets Manager at {SecretName}", secretName);
             return null;
         }
     }
