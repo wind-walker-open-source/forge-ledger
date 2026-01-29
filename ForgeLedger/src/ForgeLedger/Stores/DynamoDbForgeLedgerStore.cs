@@ -128,7 +128,8 @@ public class DynamoDbForgeLedgerStore : IForgeLedgerStore
                 ["PK"] = new AttributeValue(Pk(jobId)),
                 ["SK"] = new AttributeValue(MetaSk)
             },
-            ProjectionExpression = "ttl"
+            ProjectionExpression = "#ttl",
+            ExpressionAttributeNames = new Dictionary<string, string> { ["#ttl"] = "ttl" }
         }, ct);
 
         if (jobMeta.Item != null && jobMeta.Item.TryGetValue("ttl", out var ttlAttr) &&
