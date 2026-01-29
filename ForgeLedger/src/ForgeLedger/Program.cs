@@ -1,5 +1,5 @@
 using Amazon.DynamoDBv2;
-using Amazon.SimpleSystemsManagement;
+using Amazon.SecretsManager;
 using ForgeLedger.Api;
 using ForgeLedger.Auth;
 using ForgeLedger.Core;
@@ -53,7 +53,7 @@ builder.Services.AddSwaggerGen(c =>
 
 // AWS services
 builder.Services.AddAWSService<IAmazonDynamoDB>();
-builder.Services.AddAWSService<IAmazonSimpleSystemsManagement>();
+builder.Services.AddAWSService<IAmazonSecretsManager>();
 
 // HTTP client for webhooks
 builder.Services.AddHttpClient("Webhook", client =>

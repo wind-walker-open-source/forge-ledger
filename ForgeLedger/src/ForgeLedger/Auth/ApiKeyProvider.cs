@@ -1,16 +1,18 @@
-using Amazon.SimpleSystemsManagement;
-using Amazon.SimpleSystemsManagement.Model;
+using Amazon.SecretsManager;
+using Amazon.SecretsManager.Model;
 
 namespace ForgeLedger.Auth;
 
 public class ApiKeyProvider
 {
-    private const string ParameterStorePath = "/ForgeLedger/API/Key";
+    private const string DefaultSecretName = "ForgeLedger/API/Key";
+    private const string SecretNameEnvVar = "FORGELEDGER_APIKEY_SECRET_NAME";
     private const string AppSettingsKey = "ForgeLedger:ApiKey";
 
-    private readonly IAmazonSimpleSystemsManagement? _ssm;
+    private readonly IAmazonSecretsManager? _secretsManager;
     private readonly IConfiguration _configuration;
     private readonly ILogger<ApiKeyProvider> _logger;
+    private readonly string _secretName;
 
     private string? _cachedApiKey;
     private DateTime _cacheExpiry = DateTime.MinValue;
@@ -20,11 +22,13 @@ public class ApiKeyProvider
     public ApiKeyProvider(
         IConfiguration configuration,
         ILogger<ApiKeyProvider> logger,
-        IAmazonSimpleSystemsManagement? ssm = null)
+        IAmazonSecretsManager? secretsManager = null)
     {
         _configuration = configuration;
         _logger = logger;
-        _ssm = ssm;
+        _secretsManager = secretsManager;
+        _secretName = Environment.GetEnvironmentVariable(SecretNameEnvVar)
+            ?? DefaultSecretName;
     }
 
     public async Task<string?> GetApiKeyAsync(CancellationToken ct = default)
@@ -44,7 +48,7 @@ public class ApiKeyProvider
                 return _cachedApiKey;
             }
 
-            // Try appsettings first
+            // Try appsettings first (useful for local development)
             var apiKey = _configuration[AppSettingsKey];
             if (!string.IsNullOrEmpty(apiKey))
             {
@@ -52,8 +56,8 @@ public class ApiKeyProvider
             }
             else
             {
-                // Fall back to Parameter Store
-                apiKey = await TryGetFromParameterStoreAsync(ct);
+                // Fall back to Secrets Manager
+                apiKey = await TryGetFromSecretsManagerAsync(ct);
             }
 
             if (!string.IsNullOrEmpty(apiKey))
@@ -70,33 +74,32 @@ public class ApiKeyProvider
         }
     }
 
-    private async Task<string?> TryGetFromParameterStoreAsync(CancellationToken ct)
+    private async Task<string?> TryGetFromSecretsManagerAsync(CancellationToken ct)
     {
-        if (_ssm == null)
+        if (_secretsManager == null)
         {
-            _logger.LogDebug("SSM client not available, skipping Parameter Store lookup");
+            _logger.LogDebug("Secrets Manager client not available, skipping secret lookup");
             return null;
         }
 
         try
         {
-            var response = await _ssm.GetParameterAsync(new GetParameterRequest
+            var response = await _secretsManager.GetSecretValueAsync(new GetSecretValueRequest
             {
-                Name = ParameterStorePath,
-                WithDecryption = true
+                SecretId = _secretName
             }, ct);
 
-            _logger.LogInformation("API key loaded from Parameter Store at {Path}", ParameterStorePath);
-            return response.Parameter?.Value;
+            _logger.LogInformation("API key loaded from Secrets Manager at {SecretName}", _secretName);
+            return response.SecretString;
         }
-        catch (ParameterNotFoundException)
+        catch (ResourceNotFoundException)
         {
-            _logger.LogDebug("Parameter {Path} not found in Parameter Store", ParameterStorePath);
+            _logger.LogDebug("Secret {SecretName} not found in Secrets Manager", _secretName);
             return null;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to retrieve API key from Parameter Store at {Path}", ParameterStorePath);
+            _logger.LogWarning(ex, "Failed to retrieve API key from Secrets Manager at {SecretName}", _secretName);
             return null;
         }
     }

@@ -2,8 +2,27 @@
   "AWSTemplateFormatVersion": "2010-09-09",
   "Transform": "AWS::Serverless-2016-10-31",
   "Description": "ForgeLedger - AWS Serverless Minimal API running on AWS Lambda.",
-  "Parameters": {},
-  "Conditions": {},
+  "Parameters": {
+    "ApiKey": {
+      "Type": "String",
+      "Default": "",
+      "NoEcho": true,
+      "Description": "API key value. If not provided, a secure random key will be auto-generated."
+    },
+    "ApiKeySecretName": {
+      "Type": "String",
+      "Default": "ForgeLedger/API/Key",
+      "Description": "Secrets Manager secret name for the API key."
+    },
+    "BaseUrlParameterPath": {
+      "Type": "String",
+      "Default": "/ForgeLedger/API/BaseUrl",
+      "Description": "SSM Parameter Store path for the Base URL."
+    }
+  },
+  "Conditions": {
+    "UseProvidedApiKey": { "Fn::Not": [{ "Fn::Equals": [{ "Ref": "ApiKey" }, ""] }] }
+  },
   "Resources": {
     "ForgeLedgerApi": {
       "Type": "AWS::Serverless::Api",
@@ -279,7 +298,8 @@
         "Role": null,
         "Environment": {
           "Variables": {
-            "FORGELEDGER_TABLE": { "Ref": "ForgeLedgerTable" }
+            "FORGELEDGER_TABLE": { "Ref": "ForgeLedgerTable" },
+            "FORGELEDGER_APIKEY_SECRET_NAME": { "Ref": "ApiKeySecretName" }
           }
         },
         "Policies": [
@@ -290,9 +310,16 @@
             }
           },
           {
-            "SSMParameterReadPolicy": {
-              "ParameterName": "ForgeLedger/API/Key"
-            }
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "secretsmanager:GetSecretValue"
+                ],
+                "Resource": { "Ref": "ApiKeySecret" }
+              }
+            ]
           }
         ],
         "Events": {
@@ -404,6 +431,41 @@
         "Principal": "apigateway.amazonaws.com",
         "SourceArn": { "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ForgeLedgerApi}/*/*/*" }
       }
+    },
+
+    "ApiKeySecret": {
+      "Type": "AWS::SecretsManager::Secret",
+      "Properties": {
+        "Name": { "Ref": "ApiKeySecretName" },
+        "Description": "API key for ForgeLedger authentication",
+        "SecretString": {
+          "Fn::If": [
+            "UseProvidedApiKey",
+            { "Ref": "ApiKey" },
+            { "Ref": "AWS::NoValue" }
+          ]
+        },
+        "GenerateSecretString": {
+          "Fn::If": [
+            "UseProvidedApiKey",
+            { "Ref": "AWS::NoValue" },
+            {
+              "PasswordLength": 32,
+              "ExcludePunctuation": true
+            }
+          ]
+        }
+      }
+    },
+
+    "BaseUrlParameter": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": { "Ref": "BaseUrlParameterPath" },
+        "Type": "String",
+        "Value": { "Fn::Sub": "https://${ForgeLedgerApi}.execute-api.${AWS::Region}.amazonaws.com/Prod" },
+        "Description": "Base URL for ForgeLedger API endpoint"
+      }
     }
   },
   "Outputs": {
@@ -416,6 +478,18 @@
     "TableName": {
       "Description": "DynamoDB table name for ForgeLedger",
       "Value": { "Ref": "ForgeLedgerTable" }
+    },
+    "ApiKeySecretArn": {
+      "Description": "ARN of the Secrets Manager secret containing the API key",
+      "Value": { "Ref": "ApiKeySecret" }
+    },
+    "ApiKeySecretName": {
+      "Description": "Name of the Secrets Manager secret containing the API key",
+      "Value": { "Ref": "ApiKeySecretName" }
+    },
+    "BaseUrlParameterPath": {
+      "Description": "SSM Parameter Store path for the Base URL",
+      "Value": { "Ref": "BaseUrlParameterPath" }
     }
   }
 }

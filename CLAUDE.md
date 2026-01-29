@@ -16,9 +16,37 @@ dotnet run --project ForgeLedger/src/ForgeLedger
 
 # Deploy to AWS Lambda
 dotnet lambda deploy-serverless
+
+# Deploy with custom parameters
+dotnet lambda deploy-serverless --template-parameters "ApiKey=my-secret-key"
 ```
 
 Local development serves Swagger UI at `https://localhost:<port>/swagger`.
+
+### Deployment Parameters
+
+The `serverless.template` supports these optional CloudFormation parameters:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `ApiKey` | *(auto-generated)* | API key value. If not provided, a secure 32-character key is auto-generated |
+| `ApiKeySecretName` | `ForgeLedger/API/Key` | Secrets Manager secret name for the API key |
+| `BaseUrlParameterPath` | `/ForgeLedger/API/BaseUrl` | SSM Parameter Store path for the Base URL (always created) |
+
+Example deployments:
+```bash
+# Deploy with auto-generated API key (simplest)
+dotnet lambda deploy-serverless
+
+# Deploy with specific API key
+dotnet lambda deploy-serverless --template-parameters "ApiKey=my-secret-key"
+
+# Deploy with custom paths (multi-environment)
+dotnet lambda deploy-serverless \
+  --template-parameters "ApiKeySecretName=prod/forge/apikey;BaseUrlParameterPath=/prod/forge/baseurl"
+```
+
+The Base URL is automatically stored in Parameter Store after deployment for client discovery.
 
 ## Project Architecture
 
@@ -61,8 +89,8 @@ State transitions are enforced atomically via DynamoDB condition expressions.
 ### Authentication
 
 API key authentication via `X-API-KEY` header. Key is loaded from (in order):
-1. appsettings: `ForgeLedger:ApiKey` (if set, used immediately)
-2. AWS Parameter Store: `/ForgeLedger/API/Key` (fallback if appsettings is empty)
+1. appsettings: `ForgeLedger:ApiKey` (if set, used immediately for local dev)
+2. AWS Secrets Manager: secret name from `FORGELEDGER_APIKEY_SECRET_NAME` env var (default: `ForgeLedger/API/Key`)
 
 Excluded paths (no auth required): `/`, `/health`, `/swagger/*`
 
