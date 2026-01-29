@@ -1,5 +1,5 @@
 using Amazon.DynamoDBv2;
-using Amazon.SimpleSystemsManagement;
+using Amazon.SecretsManager;
 using ForgeLedger.Core;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -14,7 +14,7 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
 {
     public IAmazonDynamoDB MockDynamoDB { get; } = Substitute.For<IAmazonDynamoDB>();
     public IForgeLedgerStore MockStore { get; } = Substitute.For<IForgeLedgerStore>();
-    public IAmazonSimpleSystemsManagement MockSsm { get; } = Substitute.For<IAmazonSimpleSystemsManagement>();
+    public IAmazonSecretsManager MockSecretsManager { get; } = Substitute.For<IAmazonSecretsManager>();
 
     public string TestApiKey { get; set; } = "test-api-key";
 
@@ -39,12 +39,12 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
         {
             // Remove all AWS service registrations
             services.RemoveAll<IAmazonDynamoDB>();
-            services.RemoveAll<IAmazonSimpleSystemsManagement>();
+            services.RemoveAll<IAmazonSecretsManager>();
             services.RemoveAll<IForgeLedgerStore>();
 
             // Add mocks
             services.AddSingleton(MockDynamoDB);
-            services.AddSingleton(MockSsm);
+            services.AddSingleton(MockSecretsManager);
             services.AddSingleton(MockStore);
         });
     }
