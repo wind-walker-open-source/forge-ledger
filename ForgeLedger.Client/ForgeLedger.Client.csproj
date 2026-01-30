@@ -7,7 +7,7 @@
 
         <!-- NuGet Package Metadata -->
         <PackageId>ForgeLedger.Client</PackageId>
-        <Version>0.1.1</Version>
+        <Version>0.1.2</Version>
         <Authors>Lister Potter</Authors>
         <Company>Wind Walker Forge, LLC</Company>
         <Description>.NET client SDK for ForgeLedger - a lightweight, deterministic job and workflow ledger for queue-driven and distributed systems</Description>
