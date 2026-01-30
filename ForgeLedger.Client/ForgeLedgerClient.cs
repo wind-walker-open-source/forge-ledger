@@ -145,7 +145,7 @@ namespace ForgeLedger.Client
             }
 
             var baseUri = GetBaseUri();
-            var endpoint = new Uri(baseUri, $"jobs/{Esc(jobId)}/items/{Esc(itemId)}/claim");
+            var endpoint = new Uri(baseUri, $"jobs/{Esc(jobId)}/items/{Esc(itemId)}:claim");
 
             return await SendJsonAsync<ClaimItemResponse>(HttpMethod.Post, endpoint, payloadOrNull: null).ConfigureAwait(false);
         }
@@ -200,7 +200,7 @@ namespace ForgeLedger.Client
             }
 
             var baseUri = GetBaseUri();
-            var endpoint = new Uri(baseUri, $"jobs/{Esc(jobId)}/items/{Esc(itemId)}/complete");
+            var endpoint = new Uri(baseUri, $"jobs/{Esc(jobId)}/items/{Esc(itemId)}:complete");
 
             await SendNoContentAsync(HttpMethod.Post, endpoint, request).ConfigureAwait(false);
         }
@@ -223,7 +223,7 @@ namespace ForgeLedger.Client
             }
 
             var baseUri = GetBaseUri();
-            var endpoint = new Uri(baseUri, $"jobs/{Esc(jobId)}/items/{Esc(itemId)}/fail");
+            var endpoint = new Uri(baseUri, $"jobs/{Esc(jobId)}/items/{Esc(itemId)}:fail");
 
             await SendNoContentAsync(HttpMethod.Post, endpoint, request).ConfigureAwait(false);
         }

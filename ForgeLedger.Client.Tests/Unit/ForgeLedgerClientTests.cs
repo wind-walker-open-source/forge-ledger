@@ -116,7 +116,7 @@ public class ForgeLedgerClientTests
         _mockHandler.SentRequests.Should().HaveCount(1);
         var sentRequest = _mockHandler.SentRequests[0];
         sentRequest.Method.Should().Be(HttpMethod.Post);
-        sentRequest.RequestUri!.ToString().Should().Be($"{BaseUrl}/jobs/job-123/items/item-456/claim");
+        sentRequest.RequestUri!.ToString().Should().Be($"{BaseUrl}/jobs/job-123/items/item-456:claim");
     }
 
     [Fact]
@@ -249,7 +249,7 @@ public class ForgeLedgerClientTests
         _mockHandler.SentRequests.Should().HaveCount(1);
         var sentRequest = _mockHandler.SentRequests[0];
         sentRequest.Method.Should().Be(HttpMethod.Post);
-        sentRequest.RequestUri!.ToString().Should().Be($"{BaseUrl}/jobs/job-123/items/item-456/complete");
+        sentRequest.RequestUri!.ToString().Should().Be($"{BaseUrl}/jobs/job-123/items/item-456:complete");
     }
 
     [Fact]
@@ -289,7 +289,7 @@ public class ForgeLedgerClientTests
         _mockHandler.SentRequests.Should().HaveCount(1);
         var sentRequest = _mockHandler.SentRequests[0];
         sentRequest.Method.Should().Be(HttpMethod.Post);
-        sentRequest.RequestUri!.ToString().Should().Be($"{BaseUrl}/jobs/job-123/items/item-456/fail");
+        sentRequest.RequestUri!.ToString().Should().Be($"{BaseUrl}/jobs/job-123/items/item-456:fail");
     }
 
     [Fact]
